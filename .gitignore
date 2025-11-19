@@ -147,7 +147,45 @@ known_devices.yaml
 *.db-shm
 *.db-wal
 
-# Development
+# Development and research files
 go-ipxl/
 ipixel-ctrl/
 ipixel-protocol-doc/
+
+# Home Assistant specific
+home-assistant.log*
+configuration.yaml
+secrets.yaml
+known_devices.yaml
+ip_bans.yaml
+.storage/
+deps/
+tts/
+www/
+custom_components/*/*/__pycache__/
+
+# Testing files
+test_*.py
+*_test.py
+test_output/
+.pytest_cache/
+
+# Local development
+.devcontainer/
+*.code-workspace
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.orig
+
+# Compiled translations
+*.mo
+
+# Release files
+*.zip
+*.tar.gz
+
+# Claude Code specific
+.claude/
