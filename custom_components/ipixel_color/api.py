@@ -110,18 +110,46 @@ class iPIXELAPI:
             return self._device_info
             
         try:
-            # Send device info query (0x0001 command from go-ipxl)
-            command = bytes([0x05, 0x00, 0x01, 0x00, 0x00])
+            # Send device info query command (from go-ipxl device_info.go)
+            # Format: [8, 0, 1, 128, hour, minute, second, language]
+            import time
+            now = time.localtime()
+            command = bytes([
+                8,              # Command header
+                0,              # Reserved 
+                1,              # Sub-command
+                128,            # 0x80 (corresponds to -128 in signed byte)
+                now.tm_hour,    # Current hour
+                now.tm_min,     # Current minute  
+                now.tm_sec,     # Current second
+                0               # Language (0 for default)
+            ])
             
-            # For now, we'll need to implement response parsing
-            # This is a placeholder that returns default values
-            self._device_info = {
-                "width": 64,
-                "height": 16, 
-                "device_type": "Unknown",
-                "mcu_version": "Unknown",
-                "wifi_version": "Unknown"
-            }
+            # Set up notification response
+            self._device_response = None
+            response_received = asyncio.Event()
+            
+            def response_handler(sender: Any, data: bytearray) -> None:
+                self._device_response = bytes(data)
+                response_received.set()
+            
+            # Enable notifications temporarily
+            await self._client.start_notify(NOTIFY_UUID, response_handler)
+            
+            try:
+                # Send command
+                await self._client.write_gatt_char(WRITE_UUID, command)
+                
+                # Wait for response (5 second timeout)
+                await asyncio.wait_for(response_received.wait(), timeout=5.0)
+                
+                if self._device_response:
+                    self._device_info = self._parse_device_response(self._device_response)
+                else:
+                    raise Exception("No response received")
+                    
+            finally:
+                await self._client.stop_notify(NOTIFY_UUID)
             
             _LOGGER.info("Device info retrieved: %s", self._device_info)
             return self._device_info
@@ -137,6 +165,68 @@ class iPIXELAPI:
                 "wifi_version": "Unknown"
             }
             return self._device_info
+    
+    def _parse_device_response(self, response: bytes) -> dict[str, Any]:
+        """Parse device info response (from go-ipxl parseDeviceInfo)."""
+        if len(response) < 5:
+            raise Exception(f"Response too short: got {len(response)} bytes, need at least 5")
+        
+        _LOGGER.debug("Device response: %s", response.hex())
+        
+        # Device type from byte 4
+        device_type_byte = response[4]
+        
+        # Device type mapping (from go-ipxl consts.go)
+        device_type_map = {
+            0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9,
+            10: 10, 11: 11, 12: 12, 13: 13, 14: 14, 15: 15, 16: 16, 17: 17,
+            18: 18, 19: 19, 20: 20, 21: 21, 22: 22, 23: 23, 24: 24, 25: 25,
+            26: 26, 27: 27, 28: 28, 29: 29, 30: 30, 31: 31, 32: 32, 33: 33,
+            34: 34, 35: 35, 36: 36, 37: 37, 38: 38, 39: 39, 40: 40, 41: 41,
+            42: 42, 43: 43, 44: 44, 45: 45, 46: 46, 47: 47, 48: 48, 49: 49,
+            50: 50
+        }
+        
+        # LED size mapping (from go-ipxl consts.go) 
+        led_size_map = {
+            0: [64, 64], 1: [64, 32], 2: [32, 32], 3: [16, 16], 4: [32, 8], 
+            5: [64, 16], 6: [96, 8], 7: [128, 8], 8: [192, 8], 9: [320, 8],
+            10: [8, 32], 11: [8, 8], 12: [96, 32], 13: [128, 32], 14: [192, 32],
+            15: [256, 32], 16: [320, 32], 17: [128, 16], 18: [192, 16], 19: [256, 16],
+            20: [320, 16], 21: [160, 32], 22: [384, 32], 23: [512, 32], 24: [384, 16],
+            25: [512, 16], 26: [448, 32], 27: [576, 32], 28: [640, 32], 29: [768, 32],
+            30: [896, 32], 31: [1024, 32], 32: [448, 16], 33: [576, 16], 34: [640, 16],
+            35: [768, 16], 36: [896, 16], 37: [1024, 16], 38: [32, 16], 39: [96, 16],
+            40: [160, 16], 41: [224, 16], 42: [288, 16], 43: [352, 16], 44: [416, 16],
+            45: [480, 16], 46: [544, 16], 47: [608, 16], 48: [672, 16], 49: [736, 16],
+            50: [800, 16]
+        }
+        
+        led_type = device_type_map.get(device_type_byte, 0)
+        width, height = led_size_map.get(led_type, [64, 64])
+        
+        device_info = {
+            "width": width,
+            "height": height,
+            "device_type": f"Type {device_type_byte}",
+        }
+        
+        # Parse version info if response is long enough
+        if len(response) >= 8:
+            # MCU Version (bytes 4-5)
+            mcu_major = response[4]  
+            mcu_minor = response[5]
+            device_info["mcu_version"] = f"{mcu_major}.{mcu_minor:02d}"
+            
+            # WiFi Version (bytes 6-7)
+            wifi_major = response[6]
+            wifi_minor = response[7] 
+            device_info["wifi_version"] = f"{wifi_major}.{wifi_minor:02d}"
+        else:
+            device_info["mcu_version"] = "Unknown"
+            device_info["wifi_version"] = "Unknown"
+            
+        return device_info
 
     async def display_text(self, text: str) -> bool:
         """Display text as image using PIL."""
