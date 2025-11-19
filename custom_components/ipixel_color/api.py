@@ -252,20 +252,32 @@ class iPIXELAPI:
             data_size = len(png_data)
             data_crc = crc32(png_data) & 0xFFFFFFFF
             
-            # Build command: [length][cmd][0x00][size][crc][0x00][screen][png_data]
+            # First enable DIY mode (like go-ipxl examples)
+            diy_command = bytes([5, 0, 4, 1, 3])  # Enable DIY mode with clear screen
+            await self._send_command(diy_command)
+            
+            # Build PNG command following ipixel-ctrl format exactly
+            payload = bytearray()
+            payload.append(0x00)  # Fixed byte
+            payload.extend(data_size.to_bytes(4, 'little'))  # Data size
+            payload.extend(data_crc.to_bytes(4, 'little'))   # CRC32
+            payload.append(0x00)  # Fixed byte  
+            payload.append(0x01)  # Buffer number (screen 1)
+            payload.extend(png_data)  # PNG data
+            
+            # Create complete command with length header
+            total_length = len(payload) + 4  # +4 for length and command
             command = bytearray()
-            command.extend((data_size + 15).to_bytes(2, 'little'))  # Total length
-            command.extend([0x02, 0x00])  # Command 0x0002
-            command.append(0x00)  # Fixed
-            command.extend(data_size.to_bytes(4, 'little'))  # PNG size
-            command.extend(data_crc.to_bytes(4, 'little'))   # CRC32
-            command.append(0x00)  # Fixed
-            command.append(0x01)  # Screen 1
-            command.extend(png_data)  # PNG data
+            command.extend(total_length.to_bytes(2, 'little'))  # Length
+            command.extend([0x02, 0x00])  # Command 0x0002 (little-endian)
+            command.extend(payload)
             
             success = await self._send_command(bytes(command))
             if success:
-                _LOGGER.debug("Text image sent: %s", text)
+                _LOGGER.info("Text image sent successfully: %s (size: %dx%d, PNG: %d bytes)", 
+                           text, width, height, data_size)
+            else:
+                _LOGGER.error("Failed to send text image")
             return success
             
         except Exception as err:
