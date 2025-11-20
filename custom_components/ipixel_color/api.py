@@ -303,7 +303,13 @@ class iPIXELAPI:
             data_size = len(png_data)
             data_crc = crc32(png_data) & 0xFFFFFFFF
             
-            # 1. Enable DIY mode first (mode 1 = enter and clear current, show new)
+            # 1. First exit program mode and enter default mode
+            default_mode_command = self._make_command_payload(0x8003, bytes())  # Default mode
+            _LOGGER.debug("Setting default mode to exit slideshow")
+            await self._send_command(default_mode_command)
+            await asyncio.sleep(0.1)
+            
+            # 2. Enable DIY mode (mode 1 = enter and clear current, show new)
             diy_command = bytes([5, 0, 4, 1, 1])
             _LOGGER.debug("Sending DIY mode command: %s", diy_command.hex())
             diy_success = await self._send_command(diy_command)
@@ -345,6 +351,17 @@ class iPIXELAPI:
         except Exception as err:
             _LOGGER.error("Error displaying text: %s", err)
             return False
+
+    def _make_command_payload(self, opcode: int, payload: bytes) -> bytes:
+        """Create command with header (following ipixel-ctrl/common.py format)."""
+        total_length = len(payload) + 4  # +4 for length and opcode
+        
+        command = bytearray()
+        command.extend(total_length.to_bytes(2, 'little'))  # Length (little-endian)
+        command.extend(opcode.to_bytes(2, 'little'))        # Opcode (little-endian)
+        command.extend(payload)                             # Payload data
+        
+        return bytes(command)
 
     def _notification_handler(self, sender: Any, data: bytearray) -> None:
         """Handle notifications from the device."""
