@@ -13,6 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # Minimum font size to try
 MIN_FONT_SIZE = 4
+MARGIN_THRESHOLD = 64  # Pixel brightness threshold for margin detection
 
 
 def _get_font_path(font_name: str) -> str | None:
@@ -70,33 +71,62 @@ def render_text_to_png(text: str, width: int, height: int, antialias: bool = Tru
     else:
         font_obj = get_optimal_font(draw, lines, width, height, font)
     
-    # Calculate total text height for centering
-    total_height = 0
-    line_heights = []
+    # Create temporary image to measure actual content bounds
+    temp_img = Image.new('L', (width, height), 0)  # Grayscale for easier analysis
+    temp_draw = ImageDraw.Draw(temp_img)
+    
+    # Draw all text to measure actual content area
+    temp_y = 0
+    line_data = []
     for line in lines:
-        bbox = draw.textbbox((0, 0), line, font=font_obj)
+        bbox = temp_draw.textbbox((0, 0), line, font=font_obj)
+        line_width = bbox[2] - bbox[0]
         line_height = bbox[3] - bbox[1]
-        line_heights.append(line_height)
-        total_height += line_height
-    
-    # Start position for vertical centering
-    y_start = (height - total_height) // 2
-    current_y = y_start
-    
-    # Draw each line centered
-    for i, line in enumerate(lines):
-        bbox = draw.textbbox((0, 0), line, font=font_obj)
-        text_width = bbox[2] - bbox[0]
         
-        # Center horizontally
-        x = (width - text_width) // 2
+        # Draw line on temporary image
+        temp_draw.text((0, temp_y), line, font=font_obj, fill=255)
+        line_data.append({
+            'text': line,
+            'width': line_width, 
+            'height': line_height,
+            'y_pos': temp_y
+        })
+        temp_y += line_height
+    
+    # Calculate actual content bounds by analyzing pixels
+    content_bounds = _calculate_content_bounds(temp_img)
+    if content_bounds:
+        content_left, content_top, content_right, content_bottom = content_bounds
+        content_width = content_right - content_left
+        content_height = content_bottom - content_top
+        
+        # Center based on actual content, not font metrics
+        x_offset = (width - content_width) // 2 - content_left
+        y_offset = (height - content_height) // 2 - content_top
+    else:
+        # Fallback to traditional centering if no content found
+        total_height = sum(data['height'] for data in line_data)
+        x_offset = 0
+        y_offset = (height - total_height) // 2
+    
+    # Draw each line with corrected positioning
+    current_y = y_offset
+    for i, (line, data) in enumerate(zip(lines, line_data)):
+        # Calculate horizontal position for this specific line
+        if content_bounds:
+            # Center each line individually within the display
+            line_bbox = temp_draw.textbbox((0, 0), line, font=font_obj)
+            line_width = line_bbox[2] - line_bbox[0]
+            x = (width - line_width) // 2
+        else:
+            x = (width - data['width']) // 2
         
         # Draw the line with appropriate fill color
         if not antialias:
             draw.text((x, current_y), line, font=font_obj, fill=1)  # 1 for white in 1-bit mode
         else:
             draw.text((x, current_y), line, font=font_obj, fill=(255, 255, 255))
-        current_y += line_heights[i]
+        current_y += data['height']
     
     # Convert to PNG bytes
     png_buffer = io.BytesIO()
@@ -111,6 +141,70 @@ def render_text_to_png(text: str, width: int, height: int, antialias: bool = Tru
         img.save(png_buffer, format='PNG')
         
     return png_buffer.getvalue()
+
+
+def _calculate_content_bounds(img: Image.Image) -> tuple[int, int, int, int] | None:
+    """Calculate actual content bounds by analyzing pixels.
+    
+    Args:
+        img: Grayscale image with text content
+        
+    Returns:
+        Tuple of (left, top, right, bottom) bounds or None if no content
+    """
+    width, height = img.size
+    pixels = img.load()
+    
+    # Find top boundary (first row with bright pixels)
+    top = None
+    for y in range(height):
+        for x in range(width):
+            if pixels[x, y] > MARGIN_THRESHOLD:
+                top = y
+                break
+        if top is not None:
+            break
+    
+    if top is None:
+        return None  # No content found
+    
+    # Find bottom boundary (last row with bright pixels)
+    bottom = None
+    for y in range(height - 1, -1, -1):
+        for x in range(width):
+            if pixels[x, y] > MARGIN_THRESHOLD:
+                bottom = y + 1  # +1 because we want inclusive bounds
+                break
+        if bottom is not None:
+            break
+    
+    # Find left boundary (first column with bright pixels)
+    left = None
+    for x in range(width):
+        for y in range(top, bottom):
+            if pixels[x, y] > MARGIN_THRESHOLD:
+                left = x
+                break
+        if left is not None:
+            break
+    
+    # Find right boundary (last column with bright pixels)
+    right = None
+    for x in range(width - 1, -1, -1):
+        for y in range(top, bottom):
+            if pixels[x, y] > MARGIN_THRESHOLD:
+                right = x + 1  # +1 because we want inclusive bounds
+                break
+        if right is not None:
+            break
+    
+    if left is None or right is None:
+        return None
+    
+    _LOGGER.debug("Content bounds: left=%d, top=%d, right=%d, bottom=%d (content: %dx%d)", 
+                 left, top, right, bottom, right - left, bottom - top)
+    
+    return left, top, right, bottom
 
 
 def get_fixed_font(size: int, font_name: str | None = None) -> ImageFont.FreeTypeFont:
