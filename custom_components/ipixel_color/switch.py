@@ -13,6 +13,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from .api import iPIXELAPI, iPIXELConnectionError
 from .const import DOMAIN, CONF_ADDRESS, CONF_NAME
+from .common import update_ipixel_display
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,6 +33,8 @@ async def async_setup_entry(
         iPIXELSwitch(api, entry, address, name),
         iPIXELAntialiasingSwitch(api, entry, address, name),
         iPIXELAutoUpdateSwitch(api, entry, address, name),
+        iPIXELClock24HSwitch(hass, api, entry, address, name),
+        iPIXELClockShowDateSwitch(hass, api, entry, address, name),
     ])
 
 
@@ -255,3 +258,171 @@ class iPIXELAutoUpdateSwitch(SwitchEntity, RestoreEntity):
         """Disable auto-update."""
         self._is_on = False
         _LOGGER.debug("Auto-update disabled - use update button for manual updates")
+
+
+class iPIXELClock24HSwitch(SwitchEntity, RestoreEntity):
+    """Representation of an iPIXEL Color clock 24h format setting."""
+
+    _attr_icon = "mdi:clock-time-four-outline"
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        api: iPIXELAPI,
+        entry: ConfigEntry,
+        address: str,
+        name: str
+    ) -> None:
+        """Initialize the clock 24h switch."""
+        self.hass = hass
+        self._api = api
+        self._entry = entry
+        self._address = address
+        self._name = name
+        self._attr_name = f"{name} Clock 24h"
+        self._attr_unique_id = f"{address}_clock_24h"
+        self._attr_entity_description = "Use 24-hour format for clock display"
+        self._is_on = True  # Default to 24h format
+
+        # Device info for grouping in device registry
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, address)},
+            name=name,
+            manufacturer="iPIXEL",
+            model="LED Matrix Display",
+            sw_version="1.0",
+        )
+
+    async def async_added_to_hass(self) -> None:
+        """Run when entity about to be added to hass."""
+        await super().async_added_to_hass()
+
+        # Restore last state if available
+        last_state = await self.async_get_last_state()
+        if last_state is not None:
+            self._is_on = last_state.state == "on"
+            _LOGGER.debug("Restored clock 24h state: %s", self._is_on)
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if 24h format is enabled."""
+        return self._is_on
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return True
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Enable 24h format."""
+        self._is_on = True
+        _LOGGER.debug("Clock 24h format enabled")
+        await self._trigger_auto_update()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Disable 24h format (use 12h)."""
+        self._is_on = False
+        _LOGGER.debug("Clock 12h format enabled")
+        await self._trigger_auto_update()
+
+    async def _trigger_auto_update(self) -> None:
+        """Trigger display update if auto-update is enabled and in clock mode."""
+        try:
+            # Check if we're in clock mode
+            mode_entity_id = f"select.{self._name.lower().replace(' ', '_')}_mode"
+            mode_state = self.hass.states.get(mode_entity_id)
+
+            if mode_state and mode_state.state == "clock":
+                # Check auto-update setting
+                auto_update_entity_id = f"switch.{self._name.lower().replace(' ', '_')}_auto_update"
+                auto_update_state = self.hass.states.get(auto_update_entity_id)
+
+                if auto_update_state and auto_update_state.state == "on":
+                    await update_ipixel_display(self.hass, self._name, self._api)
+                    _LOGGER.debug("Auto-update triggered due to clock 24h change")
+        except Exception as err:
+            _LOGGER.debug("Could not trigger auto-update: %s", err)
+
+
+class iPIXELClockShowDateSwitch(SwitchEntity, RestoreEntity):
+    """Representation of an iPIXEL Color clock show date setting."""
+
+    _attr_icon = "mdi:calendar-clock"
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        api: iPIXELAPI,
+        entry: ConfigEntry,
+        address: str,
+        name: str
+    ) -> None:
+        """Initialize the clock show date switch."""
+        self.hass = hass
+        self._api = api
+        self._entry = entry
+        self._address = address
+        self._name = name
+        self._attr_name = f"{name} Clock Show Date"
+        self._attr_unique_id = f"{address}_clock_show_date"
+        self._attr_entity_description = "Show date alongside time in clock display"
+        self._is_on = True  # Default to showing date
+
+        # Device info for grouping in device registry
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, address)},
+            name=name,
+            manufacturer="iPIXEL",
+            model="LED Matrix Display",
+            sw_version="1.0",
+        )
+
+    async def async_added_to_hass(self) -> None:
+        """Run when entity about to be added to hass."""
+        await super().async_added_to_hass()
+
+        # Restore last state if available
+        last_state = await self.async_get_last_state()
+        if last_state is not None:
+            self._is_on = last_state.state == "on"
+            _LOGGER.debug("Restored clock show date state: %s", self._is_on)
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if show date is enabled."""
+        return self._is_on
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return True
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Enable showing date."""
+        self._is_on = True
+        _LOGGER.debug("Clock show date enabled")
+        await self._trigger_auto_update()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Disable showing date."""
+        self._is_on = False
+        _LOGGER.debug("Clock show date disabled")
+        await self._trigger_auto_update()
+
+    async def _trigger_auto_update(self) -> None:
+        """Trigger display update if auto-update is enabled and in clock mode."""
+        try:
+            # Check if we're in clock mode
+            mode_entity_id = f"select.{self._name.lower().replace(' ', '_')}_mode"
+            mode_state = self.hass.states.get(mode_entity_id)
+
+            if mode_state and mode_state.state == "clock":
+                # Check auto-update setting
+                auto_update_entity_id = f"switch.{self._name.lower().replace(' ', '_')}_auto_update"
+                auto_update_state = self.hass.states.get(auto_update_entity_id)
+
+                if auto_update_state and auto_update_state.state == "on":
+                    await update_ipixel_display(self.hass, self._name, self._api)
+                    _LOGGER.debug("Auto-update triggered due to clock show date change")
+        except Exception as err:
+            _LOGGER.debug("Could not trigger auto-update: %s", err)

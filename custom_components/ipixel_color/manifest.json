@@ -25,7 +25,8 @@
   ],
   "requirements": [
     "bleak>=0.20.0",
-    "pillow>=10.0.0"
+    "pillow>=10.0.0",
+    "pypixelcolor>=0.3.0"
   ],
   "version": "0.1.0"
 }

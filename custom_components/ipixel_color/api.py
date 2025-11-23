@@ -14,6 +14,7 @@ from .device.commands import (
     make_png_command,
     make_brightness_command,
 )
+from .device.clock import make_clock_mode_command
 from .device.info import build_device_info_command, parse_device_response
 from .display.text_renderer import render_text_to_png
 from .exceptions import iPIXELConnectionError
@@ -74,6 +75,42 @@ class iPIXELAPI:
             return False
         except Exception as err:
             _LOGGER.error("Error setting brightness: %s", err)
+            return False
+
+    async def set_clock_mode(
+        self,
+        style: int = 1,
+        date: str = "",
+        show_date: bool = True,
+        format_24: bool = True
+    ) -> bool:
+        """Set device to clock display mode.
+
+        Args:
+            style: Clock style (0-8)
+            date: Date in DD/MM/YYYY format (defaults to today)
+            show_date: Whether to show the date
+            format_24: Whether to use 24-hour format
+
+        Returns:
+            True if command was sent successfully
+        """
+        try:
+            command = make_clock_mode_command(style, date, show_date, format_24)
+            success = await self._bluetooth.send_command(command)
+
+            if success:
+                _LOGGER.info("Clock mode set: style=%d, 24h=%s, show_date=%s",
+                           style, format_24, show_date)
+            else:
+                _LOGGER.error("Failed to set clock mode")
+            return success
+
+        except ValueError as err:
+            _LOGGER.error("Invalid clock mode parameters: %s", err)
+            return False
+        except Exception as err:
+            _LOGGER.error("Error setting clock mode: %s", err)
             return False
     
     async def get_device_info(self) -> dict[str, Any] | None:

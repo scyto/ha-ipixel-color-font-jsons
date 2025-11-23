@@ -22,3 +22,18 @@ SCAN_INTERVAL = 30
 CONNECTION_TIMEOUT = 10
 RECONNECT_ATTEMPTS = 3
 RECONNECT_DELAY = 1  # seconds between retry attempts
+
+# Display modes (based on pypixelcolor capabilities)
+MODE_TEXT_IMAGE = "textimage"
+MODE_CLOCK = "clock"
+MODE_RHYTHM = "rhythm"
+MODE_FUN = "fun"
+
+AVAILABLE_MODES = [
+    MODE_TEXT_IMAGE,
+    MODE_CLOCK,
+    MODE_RHYTHM,
+    MODE_FUN,
+]
+
+DEFAULT_MODE = MODE_TEXT_IMAGE
