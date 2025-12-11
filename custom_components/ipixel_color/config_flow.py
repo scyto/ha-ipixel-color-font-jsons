@@ -11,7 +11,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 
-from .api import iPIXELAPI, discover_ipixel_devices, iPIXELConnectionError, iPIXELTimeoutError
+from .api import iPIXELAPI, iPIXELConnectionError, iPIXELTimeoutError
+from .bluetooth.scanner import discover_ipixel_devices_ha
 from .const import DOMAIN, CONF_ADDRESS
 
 _LOGGER = logging.getLogger(__name__)
@@ -77,15 +78,15 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Show the discovery form with found devices."""
         errors = {}
         
-        # Discover devices
+        # Discover devices using HA's bluetooth API
         try:
-            _LOGGER.warning("CONFIG_FLOW: Starting device discovery with timeout=10, return_all=True")
-            discovered = await discover_ipixel_devices(timeout=10, return_all=True)
-            _LOGGER.warning("CONFIG_FLOW: Discovery returned %d devices", len(discovered))
+            _LOGGER.debug("CONFIG_FLOW: Starting device discovery using HA bluetooth API")
+            discovered = discover_ipixel_devices_ha(self.hass, return_all=True)
+            _LOGGER.debug("CONFIG_FLOW: Discovery returned %d devices", len(discovered))
             self._discovered_devices = {
                 device["address"]: device for device in discovered
             }
-            _LOGGER.warning("CONFIG_FLOW: Stored %d devices in _discovered_devices", len(self._discovered_devices))
+            _LOGGER.debug("CONFIG_FLOW: Stored %d devices in _discovered_devices", len(self._discovered_devices))
         except Exception as err:
             _LOGGER.error("CONFIG_FLOW: Discovery failed: %s", err)
             import traceback

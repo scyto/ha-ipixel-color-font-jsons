@@ -9,7 +9,6 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 from .bluetooth.client import BluetoothClient
-from .bluetooth.scanner import discover_ipixel_devices
 from .device.commands import (
     make_power_command,
     make_brightness_command,
@@ -353,7 +352,6 @@ class iPIXELAPI:
         return self._address
 
 
-# Export the discovery function at module level for convenience
-__all__ = ["iPIXELAPI", "discover_ipixel_devices", "iPIXELError", "iPIXELConnectionError", "iPIXELTimeoutError"]
-from .bluetooth.scanner import discover_ipixel_devices
+# Export at module level for convenience
+__all__ = ["iPIXELAPI", "iPIXELError", "iPIXELConnectionError", "iPIXELTimeoutError"]
 from .exceptions import iPIXELError, iPIXELConnectionError, iPIXELTimeoutError
