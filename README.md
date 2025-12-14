@@ -21,10 +21,27 @@ These displays have been recently available as B.K. Light LED Pixel Board from A
 
 ## Installation
 
+### HACS (Recommended)
+
+1. Open HACS in Home Assistant
+2. Click on the three dots in the top right corner
+3. Select **Custom repositories**
+4. Add the repository URL: `https://github.com/cagcoach/ha-ipixel-color`
+5. Select **Integration** as the category
+6. Click **Add**
+7. Search for "iPIXEL Color" in HACS and install it
+8. Restart Home Assistant
+9. Add the integration via Settings → Devices & Services → Add Integration
+
+### Manual Installation
+
 1. Copy `custom_components/ipixel_color` to your HA `custom_components` directory
-2. Create `fonts/` folder for custom fonts (optional)
-3. Restart Home Assistant
-4. Add integration via Settings → Devices & Services → Add Integration
+2. Restart Home Assistant
+3. Add integration via Settings → Devices & Services → Add Integration
+
+### Optional: Custom Fonts
+
+Place `.ttf`/`.otf` font files in the `fonts/` folder within the integration directory for additional font options.
 
 ## Entities
 
