@@ -28,8 +28,8 @@ def get_font_locations() -> list[Path]:
 
     # 2nd priority: pypixelcolor package fonts
     try:
-        import pypixelcolor.commands.send_text
-        pypixelcolor_fonts_dir = Path(pypixelcolor.commands.send_text.__file__).parent.parent / "fonts"
+        import pypixelcolor
+        pypixelcolor_fonts_dir = Path(pypixelcolor.__file__).parent / "fonts"
         if pypixelcolor_fonts_dir.exists() and pypixelcolor_fonts_dir.is_dir():
             locations.append(pypixelcolor_fonts_dir)
             _LOGGER.debug("Added pypixelcolor fonts directory: %s", pypixelcolor_fonts_dir)
