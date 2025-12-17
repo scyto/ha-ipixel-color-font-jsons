@@ -3,7 +3,7 @@
   "metrics": {
     "16": {
       "font_size": 16,
-      "offset": [0, -5],
+      "offset": [0, -9],
       "pixel_threshold": 70,
       "var_width": true 
     },
